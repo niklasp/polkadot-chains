@@ -1,0 +1,14 @@
+{
+  "name": "polkadot-chains",
+  "version": "1.0.0",
+  "description": "Polkadot and Kusama Chains ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Niklas P",
+  "license": "ISC",
+  "dependencies": {
+    "apollo-server-micro": "^3.13.0"
+  }
+}
