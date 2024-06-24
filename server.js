@@ -1,7 +1,4 @@
-const { ApolloServer, gql } = require("apollo-server-micro");
-const {
-  ApolloServerPluginLandingPageGraphQLPlayground,
-} = require("apollo-server-core");
+const { ApolloServer, gql } = require("apollo-server-express");
 const express = require("express");
 const fetch = require("node-fetch");
 const { parse } = require("@babel/parser");
@@ -185,7 +182,7 @@ const server = new ApolloServer({
   typeDefs,
   resolvers,
   introspection: true,
-  plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
+  playground: true, // Enable playground
   context: ({ req }) => {
     const token = req.headers.authorization || "";
     const isAuthorized = token === `Bearer ${SECRET_API_KEY}`;
