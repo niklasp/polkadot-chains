@@ -19,13 +19,16 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: polkadot-js/apps
+          ref: master # Change this to the correct branch name
           path: polkadot-js-apps
+          fetch-depth: 2 # Ensure enough history is fetched
 
       - name: Check for file changes
         id: check_changes
         run: |
           cd polkadot-js-apps
-          git fetch origin master
+          git checkout master  # Ensure we are on the correct branch
+          git pull origin master  # Ensure the branch is up-to-date
           DIFF=$(git diff HEAD~1 HEAD -- packages/apps-config/src/endpoints/production.ts)
           echo "${DIFF}"
           echo "::set-output name=diff::${DIFF}"
