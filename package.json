@@ -7,6 +7,10 @@
   "license": "MIT",
   "dependencies": {
     "apollo-server-micro": "^2.25.2",
-    "graphql": "^15.5.0"
+    "graphql": "^15.5.0",
+    "node-fetch": "^2.6.1",
+    "@babel/parser": "^7.14.7",
+    "@babel/traverse": "^7.14.7",
+    "@babel/types": "^7.14.5"
   }
 }
