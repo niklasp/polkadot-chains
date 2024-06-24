@@ -55,22 +55,36 @@ const parseProdChains = (fileContent) => {
       ) {
         const declaration = path.node.declaration.declarations[0];
         if (babelTypes.isIdentifier(declaration.id, { name: "prodChains" })) {
-          prodChains = declaration.init.elements.map((element) => ({
-            info: element.properties.find((prop) => prop.key.name === "info")
-              .value.value,
-            text: element.properties.find((prop) => prop.key.name === "text")
-              .value.value,
-            color: element.properties.find((prop) => prop.key.name === "color")
-              .value.value,
-            logo: element.properties.find((prop) => prop.key.name === "logo")
-              .value.value,
-            providers: element.properties
-              .find((prop) => prop.key.name === "providers")
-              .value.properties.map((provider) => ({
-                name: provider.key.value,
-                url: provider.value.value,
-              })),
-          }));
+          prodChains = declaration.init.elements.map((element) => {
+            const infoProp = element.properties.find(
+              (prop) => prop.key.name === "info"
+            );
+            const textProp = element.properties.find(
+              (prop) => prop.key.name === "text"
+            );
+            const colorProp = element.properties.find(
+              (prop) => prop.key.name === "color"
+            );
+            const logoProp = element.properties.find(
+              (prop) => prop.key.name === "logo"
+            );
+            const providersProp = element.properties.find(
+              (prop) => prop.key.name === "providers"
+            );
+
+            return {
+              info: infoProp?.value?.value || null,
+              text: textProp?.value?.value || null,
+              color: colorProp?.value?.value || null,
+              logo: logoProp?.value?.value || null,
+              providers: providersProp
+                ? providersProp.value.properties.map((provider) => ({
+                    name: provider.key?.value || provider.key?.name || null,
+                    url: provider.value?.value || null,
+                  }))
+                : [],
+            };
+          });
         }
       }
     },
