@@ -62,21 +62,32 @@ const parseProdChains = (fileContent) => {
             const textProp = element.properties.find(
               (prop) => prop.key.name === "text"
             );
-            const colorProp = element.properties.find(
-              (prop) => prop.key.name === "color"
-            );
-            const logoProp = element.properties.find(
-              (prop) => prop.key.name === "logo"
+            const uiProp = element.properties.find(
+              (prop) => prop.key.name === "ui"
             );
             const providersProp = element.properties.find(
               (prop) => prop.key.name === "providers"
             );
 
+            let color = null;
+            let logo = null;
+
+            if (uiProp) {
+              const colorProp = uiProp.value.properties.find(
+                (prop) => prop.key.name === "color"
+              );
+              const logoProp = uiProp.value.properties.find(
+                (prop) => prop.key.name === "logo"
+              );
+              color = colorProp?.value?.value || null;
+              logo = logoProp?.value?.value || null;
+            }
+
             return {
               info: infoProp?.value?.value || null,
               text: textProp?.value?.value || null,
-              color: colorProp?.value?.value || null,
-              logo: logoProp?.value?.value || null,
+              color,
+              logo,
               providers: providersProp
                 ? providersProp.value.properties.map((provider) => ({
                     name: provider.key?.value || provider.key?.name || null,
@@ -108,7 +119,6 @@ const resolvers = {
         throw new Error("Unauthorized");
       }
       console.log("File changed:", diff);
-      // Here, you can handle the diff as needed, e.g., store in a database, send a notification, etc.
       return "File change processed";
     },
   },
