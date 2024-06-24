@@ -1,0 +1,41 @@
+name: Monitor File Changes
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Runs every hour
+  push:
+    branches:
+      - main
+
+jobs:
+  check_updates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v2
+
+      - name: Checkout the target repository
+        uses: actions/checkout@v2
+        with:
+          repository: polkadot-js/apps
+          path: polkadot-js-apps
+
+      - name: Check for file changes
+        id: check_changes
+        run: |
+          cd polkadot-js-apps
+          git fetch origin main
+          DIFF=$(git diff HEAD~1 HEAD -- packages/apps-config/src/endpoints/production.ts)
+          echo "${DIFF}"
+          echo "::set-output name=diff::${DIFF}"
+
+      - name: Notify GraphQL Endpoint
+        if: steps.check_changes.outputs.diff != ''
+        env:
+          GRAPHQL_API_KEY: ${{ secrets.GRAPHQL_API_KEY }}
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $GRAPHQL_API_KEY" \
+          -d '{"query":"mutation { fileChanged(diff: \"'"${{ steps.check_changes.outputs.diff }}"\") }"}' \
+          https://your-vercel-app.vercel.app/api/graphql
