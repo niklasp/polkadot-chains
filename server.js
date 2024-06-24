@@ -1,16 +1,20 @@
-import { ApolloServer, gql } from "apollo-server-micro";
-import fetch from "node-fetch";
-import { parse } from "@babel/parser";
-import traverse from "@babel/traverse";
-import * as babelTypes from "@babel/types";
+const { ApolloServer, gql } = require("apollo-server-micro");
+const {
+  ApolloServerPluginLandingPageGraphQLPlayground,
+} = require("apollo-server-core");
+const express = require("express");
+const fetch = require("node-fetch");
+const { parse } = require("@babel/parser");
+const traverse = require("@babel/traverse").default;
+const babelTypes = require("@babel/types");
 
-const SECRET_API_KEY = process.env.SECRET_API_KEY; // Store this in Vercel Environment Variables
-const GITHUB_FILE_URL =
-  "https://raw.githubusercontent.com/polkadot-js/apps/359e8b48d19bad1165e028a4391df4f748385279/packages/apps-config/src/endpoints/production.ts";
+const GITHUB_POLKADOT_FILE_URL =
+  "https://raw.githubusercontent.com/polkadot-js/apps/359e8b48d19bad1165e028a4391df4f748385279/packages/apps-config/src/endpoints/productionRelayPolkadot.ts";
+const GITHUB_KUSAMA_FILE_URL =
+  "https://raw.githubusercontent.com/polkadot-js/apps/359e8b48d19bad1165e028a4391df4f748385279/packages/apps-config/src/endpoints/productionRelayKusama.ts";
 const GITHUB_LOGO_BASE_URL =
   "https://raw.githubusercontent.com/polkadot-js/apps/359e8b48d19bad1165e028a4391df4f748385279/packages/apps-config/src/ui/logos/chains/generated/";
 
-// Define the GraphQL schema
 const typeDefs = gql`
   type Chain {
     info: String
@@ -18,6 +22,7 @@ const typeDefs = gql`
     color: String
     logo: String
     providers: [Provider]
+    network: String
   }
 
   type Provider {
@@ -26,7 +31,7 @@ const typeDefs = gql`
   }
 
   type Query {
-    chains: [Chain]
+    chains(network: String): [Chain]
   }
 
   type Mutation {
@@ -34,14 +39,12 @@ const typeDefs = gql`
   }
 `;
 
-// Fetch file content from GitHub
 const fetchFileContent = async (url) => {
   const response = await fetch(url);
   const fileContent = await response.text();
   return fileContent;
 };
 
-// Fetch logo content dynamically
 const fetchLogos = async (logoFiles) => {
   const logoData = {};
 
@@ -54,7 +57,6 @@ const fetchLogos = async (logoFiles) => {
   return logoData;
 };
 
-// Parse `production.ts` file to get the logo import names and file names
 const getLogoFilesFromProduction = (fileContent) => {
   const ast = parse(fileContent, {
     sourceType: "module",
@@ -77,13 +79,13 @@ const getLogoFilesFromProduction = (fileContent) => {
   return logoFiles;
 };
 
-const parseProdChains = (fileContent, logos) => {
+const parseChains = (fileContent, logos, network) => {
   const ast = parse(fileContent, {
     sourceType: "module",
     plugins: ["typescript"],
   });
 
-  let prodChains = [];
+  let chains = [];
 
   traverse(ast, {
     ExportNamedDeclaration(path) {
@@ -92,8 +94,8 @@ const parseProdChains = (fileContent, logos) => {
         babelTypes.isVariableDeclaration(path.node.declaration)
       ) {
         const declaration = path.node.declaration.declarations[0];
-        if (babelTypes.isIdentifier(declaration.id, { name: "prodChains" })) {
-          prodChains = declaration.init.elements.map((element) => {
+        if (babelTypes.isIdentifier(declaration.id)) {
+          chains = declaration.init.elements.map((element) => {
             const infoProp = element.properties.find(
               (prop) => prop.key.name === "info"
             );
@@ -132,6 +134,7 @@ const parseProdChains = (fileContent, logos) => {
                     url: provider.value?.value || null,
                   }))
                 : [],
+              network,
             };
           });
         }
@@ -139,18 +142,32 @@ const parseProdChains = (fileContent, logos) => {
     },
   });
 
-  return prodChains;
+  return chains;
 };
 
-// Define the resolvers
 const resolvers = {
   Query: {
-    chains: async () => {
-      const fileContent = await fetchFileContent(GITHUB_FILE_URL);
-      const logoFiles = getLogoFilesFromProduction(fileContent);
-      const logos = await fetchLogos(logoFiles);
-      const prodChains = parseProdChains(fileContent, logos);
-      return prodChains;
+    chains: async (_, { network }) => {
+      const [polkadotContent, kusamaContent] = await Promise.all([
+        fetchFileContent(GITHUB_POLKADOT_FILE_URL),
+        fetchFileContent(GITHUB_KUSAMA_FILE_URL),
+      ]);
+
+      const logoFilesPolkadot = getLogoFilesFromProduction(polkadotContent);
+      const logoFilesKusama = getLogoFilesFromProduction(kusamaContent);
+      const allLogoFiles = { ...logoFilesPolkadot, ...logoFilesKusama };
+      const logos = await fetchLogos(allLogoFiles);
+
+      const polkadotChains = parseChains(polkadotContent, logos, "polkadot");
+      const kusamaChains = parseChains(kusamaContent, logos, "kusama");
+
+      const allChains = [...polkadotChains, ...kusamaChains];
+
+      if (network) {
+        return allChains.filter((chain) => chain.network === network);
+      }
+
+      return allChains;
     },
   },
   Mutation: {
@@ -159,18 +176,16 @@ const resolvers = {
         throw new Error("Unauthorized");
       }
       console.log("File changed:", diff);
-      // Here, you can handle the diff as needed, e.g., store in a database, send a notification, etc.
       return "File change processed";
     },
   },
 };
 
-// Create the Apollo Server
 const server = new ApolloServer({
   typeDefs,
   resolvers,
   introspection: true,
-  playground: true,
+  plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
   context: ({ req }) => {
     const token = req.headers.authorization || "";
     const isAuthorized = token === `Bearer ${SECRET_API_KEY}`;
@@ -178,10 +193,10 @@ const server = new ApolloServer({
   },
 });
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default server.createHandler({ path: "/api/graphql" });
+const app = express();
+server.start().then(() => {
+  server.applyMiddleware({ app, path: "/" });
+  app.listen(3000, () => {
+    console.log("Server is running on http://localhost:3000");
+  });
+});
