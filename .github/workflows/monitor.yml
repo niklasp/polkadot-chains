@@ -25,7 +25,7 @@ jobs:
         id: check_changes
         run: |
           cd polkadot-js-apps
-          git fetch origin main
+          git fetch origin master
           DIFF=$(git diff HEAD~1 HEAD -- packages/apps-config/src/endpoints/production.ts)
           echo "${DIFF}"
           echo "::set-output name=diff::${DIFF}"
